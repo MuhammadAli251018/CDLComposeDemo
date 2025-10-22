@@ -12,8 +12,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.androidnerds.core.Screen
+import com.androidnerds.core.navigation.NavigationDestinationId
 
 class ScreenA : Screen {
+
     @Composable
     override fun Content() {
         var counter by remember { mutableIntStateOf(1000) }
@@ -25,4 +27,6 @@ class ScreenA : Screen {
             )
         }
     }
+
+    override val id = NavigationDestinationId("screen_a")
 }

@@ -44,10 +44,8 @@ data class StackState <E> (val elements: List<E>) {
     }
 }
 
-abstract class Navigator {
+abstract class Navigator(protected val initialDestination: Screen) {
     abstract val id: NavigatorId
-    protected abstract val initialDestination: Screen
-
     private val _currentScreen = MutableStateFlow(initialDestination)
 
     private var backStack = StackState(initialDestination)
@@ -58,17 +56,38 @@ abstract class Navigator {
 
     val currentDestination = _currentScreen.asStateFlow()
 
-    protected fun updateBackStack(update:  StackState<Screen>.() ->  StackState<Screen>) {
+    protected fun updateBackStack(update: StackState<Screen>.() -> StackState<Screen>) {
         backStack = backStack.update()
     }
 
     fun navigateTo(destination: Screen) {
-        updateBackStack { backStack.push(destination) }
+        updateBackStack { push(destination) }
+    }
+
+    fun navigateToAndClearStack(destination: Screen) {
+        backStack = StackState(destination)
+    }
+
+    fun popToRoot() {
+        if (backStack.elements.isNotEmpty()) {
+            backStack = StackState(initialDestination)
+        }
+    }
+
+    fun popTo(destination: Screen): Boolean {
+        val targetIndex = backStack.elements.indexOfLast { it.id == destination.id }
+        return if (targetIndex >= 0) {
+            val newElements = backStack.elements.take(targetIndex + 1)
+            backStack = StackState(newElements)
+            true
+        } else {
+            false
+        }
     }
 
     fun navigateBack(): Boolean {
         val previousStack = backStack
-        updateBackStack { backStack.popIfNotLast() }
+        updateBackStack { popIfNotLast() }
         return previousStack != backStack
     }
 
