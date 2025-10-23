@@ -2,10 +2,9 @@ package com.androidnerds.core.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.androidnerds.core.Screen
 
-/* Todo: Add utils & dsl after done
 @Composable
 fun currentNavigator(): Navigator {
     val navigationManager = LocalNavigationManager.current
@@ -13,24 +12,28 @@ fun currentNavigator(): Navigator {
     return navigator
 }
 
+fun NavigationManager.navigateBackToRoot() {
+    while (true) {
+        val currentNavigator = currentNavigator.value
+        if (!currentNavigator.navigateBack()) {
+            break
+        }
+    }
+}
+
+inline fun <reified T : Navigator> NavigationManager.currentNavigatorAsOrNull(): T? =
+    currentNavigator.value as? T
+
 @Composable
-fun currentDestination(): Screen {
-    val navigator = currentNavigator()
-    val destination by navigator.currentDestination.collectAsStateWithLifecycle()
-    return destination
+fun currentBaseNavigator(): BaseNavigator {
+    val navigationManager = LocalNavigationManager.current
+    return remember {
+        navigationManager
+            .currentNavigatorAsOrNull<BaseNavigator>() ?: error("BaseNavigator not found in NavigationManager")
+    }
 }
 
-fun NavigationManager.navigateToScreen(screen: Screen) = navigateTo(screen)
-
-fun NavigationManager.switchNavigator(navigatorId: NavigatorId) = switchToNavigator(navigatorId)
-
-fun NavigationManager.goBack() = navigateBack()
-
-inline fun <reified T : Navigator> NavigationManager.getNavigator(id: NavigatorId): T? {
-    return registeredNavigators.value[id] as? T
+@Composable
+fun rememberBaseNavigator(homeScreen: BaseNavigatorScreen.Home): BaseNavigator {
+    return remember { BaseNavigator(initialDestination = homeScreen) }
 }
-
-fun NavigationManager.hasNavigator(id: NavigatorId): Boolean {
-    return registeredNavigators.value.containsKey(id)
-}
-*/

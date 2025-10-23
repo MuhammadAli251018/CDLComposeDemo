@@ -3,7 +3,6 @@ package com.androidnerds.core.navigation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -13,7 +12,10 @@ import com.androidnerds.core.Screen
 class BaseNavigator(
     initialDestination: BaseNavigatorScreen.Home = DefaultHomeScreen()
 ) : Navigator(initialDestination) {
-    override val id: NavigatorId = NavigatorId("base_navigator")
+    companion object {
+        const val BASE_NAVIGATOR_ID = "base_navigator"
+    }
+    override val id: NavigatorId = NavigatorId(BASE_NAVIGATOR_ID)
 }
 
 interface BaseNavigatorScreen : Screen {
@@ -32,36 +34,6 @@ class DefaultHomeScreen : BaseNavigatorScreen.Home {
             horizontalAlignment = Alignment.CenterHorizontally)
         {
             Text("Default Home Screen")
-
-            val navigationManager = LocalNavigationManager.current
-
-            Button(onClick = { navigationManager.navigateTo(AlternativeHomeScreen()) }) {
-                Text("Go to Alternative Home Screen")
-            }
-        }
-    }
-}
-
-class AlternativeHomeScreen : BaseNavigatorScreen.Home {
-    override val id: NavigationDestinationId
-        get() = NavigationDestinationId("alternative_home_screen")
-
-    @Composable
-    override fun Content() {
-        Column(
-            Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally)
-        {
-            Text("Alternative Home Screen")
-
-            val navigationManager = LocalNavigationManager.current
-
-            Button(onClick = {
-                navigationManager.navigateBack()
-            }) {
-                Text("Go Back to Default Home Screen")
-            }
         }
     }
 }

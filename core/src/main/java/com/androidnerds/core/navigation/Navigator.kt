@@ -5,7 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.androidnerds.core.Screen
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -16,12 +16,21 @@ value class NavigatorId(val id: String)
 @JvmInline
 value class NavigationDestinationId(val id: String)
 
-data class StackState <E> (val elements: List<E>) {
+data class StackState<E>(val elements: List<E>) {
     constructor() : this(emptyList())
     constructor(vararg screens: E) : this(screens.toList())
 
     fun push(element: E): StackState<E> {
         val newStack = elements.toMutableList().apply { add(element) }
+        return StackState(newStack)
+    }
+
+    fun pushOrReplaceOnTop(element: E, getId: (E) -> Any): StackState<E> {
+        val elementId = getId(element)
+        val newStack = elements.toMutableList().apply {
+            removeAll { getId(it) == elementId }
+            add(element)
+        }
         return StackState(newStack)
     }
 
@@ -38,47 +47,46 @@ data class StackState <E> (val elements: List<E>) {
         return pop(removedElementProvider)
     }
 
+    fun popAt(index: Int, removedElementProvider: (E) -> Unit = {}): StackState<E> {
+        if (index !in elements.indices) return this
+        val newStack = elements.toMutableList().apply {
+            removedElementProvider(removeAt(index))
+        }
+        return StackState(newStack)
+    }
+
     fun peek(index: Int? = null): E? {
         val idx = index ?: elements.lastIndex
         return if (idx in elements.indices) elements[idx] else null
     }
 }
 
-abstract class Navigator(protected val initialDestination: Screen) {
+abstract class Navigator(val initialDestination: Screen) {
     abstract val id: NavigatorId
-    private val _currentScreen = MutableStateFlow(initialDestination)
 
-    private var backStack = StackState(initialDestination)
-        set(value) {
-            field = value
-            _currentScreen.value = value.peek() ?: initialDestination
-        }
-
-    val currentDestination = _currentScreen.asStateFlow()
+    private var backStack = MutableStateFlow(StackState(initialDestination))
 
     protected fun updateBackStack(update: StackState<Screen>.() -> StackState<Screen>) {
-        backStack = backStack.update()
+        backStack.update { it.update() }
     }
 
     fun navigateTo(destination: Screen) {
-        updateBackStack { push(destination) }
-    }
-
-    fun navigateToAndClearStack(destination: Screen) {
-        backStack = StackState(destination)
+        updateBackStack { pushOrReplaceOnTop(destination) { it.id } }
     }
 
     fun popToRoot() {
-        if (backStack.elements.isNotEmpty()) {
-            backStack = StackState(initialDestination)
+        if (backStack.value.elements.isNotEmpty()) {
+            backStack.update { StackState(initialDestination) }
         }
     }
 
     fun popTo(destination: Screen): Boolean {
-        val targetIndex = backStack.elements.indexOfLast { it.id == destination.id }
+        val targetIndex = backStack.value.elements.indexOfLast { it.id == destination.id }
         return if (targetIndex >= 0) {
-            val newElements = backStack.elements.take(targetIndex + 1)
-            backStack = StackState(newElements)
+            backStack.update {
+                val newElements = it.elements.take(targetIndex + 1)
+                StackState(newElements)
+            }
             true
         } else {
             false
@@ -93,8 +101,10 @@ abstract class Navigator(protected val initialDestination: Screen) {
 
     // Todo: Add support for transitions between screens
     @Composable
-    fun ComposableNavigator() {
-        val currentScreen by _currentScreen.collectAsStateWithLifecycle()
-        currentScreen.Content()
+    fun CurrentScreen() {
+        val backStack by backStack.collectAsStateWithLifecycle()
+        val currentScreen = backStack.peek()
+
+        currentScreen?.Content()
     }
 }

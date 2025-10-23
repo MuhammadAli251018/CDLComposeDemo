@@ -1,87 +1,72 @@
 package com.androidnerds.core.navigation
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.androidnerds.core.Screen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 interface NavigationManager {
     val currentNavigator: StateFlow<Navigator>
-    val registeredNavigators: StateFlow<Map<NavigatorId, Navigator>>
 
     fun navigateTo(screen: Screen)
     fun startNavigator(navigator: Navigator)
-    fun switchToNavigator(navigatorId: NavigatorId)
     fun navigateBack()
-    fun registerNavigator(navigator: Navigator)
-    fun unregisterNavigator(navigatorId: NavigatorId)
-    @Composable
-    fun NavigationHost()
+    fun startNewNavigator(navigator: Navigator)
 }
 
-class NavigationManagerImpl(private val baseNavigator: BaseNavigator) : NavigationManager {
-
-    private val _registeredNavigators = MutableStateFlow<Map<NavigatorId, Navigator>>(
-        mapOf(baseNavigator.id to baseNavigator)
-    )
-    override val registeredNavigators: StateFlow<Map<NavigatorId, Navigator>> = _registeredNavigators.asStateFlow()
-
-    private var navigatorsStack = StackState<Navigator>(baseNavigator)
-        set(value) {
-            field = value
-            _currentNavigator.update { value.peek() ?: baseNavigator }
-        }
+class NavigationManagerImpl(
+    private val coroutineScope: CoroutineScope,
+    private val baseNavigator: BaseNavigator
+) : NavigationManager {
 
     private val _currentNavigator = MutableStateFlow<Navigator>(baseNavigator)
     override val currentNavigator: StateFlow<Navigator> = _currentNavigator.asStateFlow()
 
+    private val navigatorStack = mutableListOf<Navigator>(baseNavigator)
+
     override fun navigateTo(screen: Screen) {
-        currentNavigator.value.navigateTo(screen)
+        coroutineScope.launch {
+            _currentNavigator.value.navigateTo(screen)
+        }
     }
 
     override fun startNavigator(navigator: Navigator) {
-        registerNavigator(navigator)
-        navigatorsStack = navigatorsStack.push(navigator)
-    }
-
-    override fun switchToNavigator(navigatorId: NavigatorId) {
-        val navigator = _registeredNavigators.value[navigatorId]
-        if (navigator != null && currentNavigator.value.id != navigatorId) {
-            navigatorsStack = navigatorsStack.push(navigator)
+        coroutineScope.launch {
+            if (_currentNavigator.value.id != navigator.id) {
+                navigatorStack.add(navigator)
+                _currentNavigator.value = navigator
+            }
         }
     }
 
     override fun navigateBack() {
-        val currentNavigator = currentNavigator.value
-        if (currentNavigator.navigateBack().not() && navigatorsStack.elements.size > 1) {
-            navigatorsStack = navigatorsStack.pop()
+        coroutineScope.launch {
+            val currentNav = _currentNavigator.value
+            val didNavigateBack = currentNav.navigateBack()
+
+            if (!didNavigateBack && navigatorStack.size > 1) {
+                navigatorStack.removeLastOrNull()
+                val previousNavigator = navigatorStack.lastOrNull()
+                if (previousNavigator != null) {
+                    _currentNavigator.value = previousNavigator
+                }
+            }
         }
     }
 
-    override fun registerNavigator(navigator: Navigator) {
-        _registeredNavigators.update { currentMap ->
-            currentMap + (navigator.id to navigator)
-        }
-    }
+    override fun startNewNavigator(navigator: Navigator) {
+        coroutineScope.launch {
+            navigatorStack.clear()
+            navigatorStack.add(baseNavigator)
 
-    override fun unregisterNavigator(navigatorId: NavigatorId) {
-        _registeredNavigators.update { currentMap ->
-            currentMap - navigatorId
+            if (navigator.id != baseNavigator.id) {
+                navigatorStack.add(navigator)
+                _currentNavigator.value = navigator
+            } else {
+                _currentNavigator.value = baseNavigator
+            }
         }
-
-        val updatedStack = StackState(navigatorsStack.elements.filter { it.id != navigatorId })
-        if (updatedStack.elements.isNotEmpty()) {
-            navigatorsStack = updatedStack
-        }
-    }
-
-    @Composable
-    override fun NavigationHost() {
-        val currentNavigator by currentNavigator.collectAsStateWithLifecycle()
-        currentNavigator.ComposableNavigator()
     }
 }

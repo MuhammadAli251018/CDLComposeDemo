@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 
 val LocalNavigationManager = compositionLocalOf<NavigationManager> {
     error("NavigationManager not provided")
@@ -25,5 +27,5 @@ fun NavigationProvider(
 fun rememberNavigationManager(
     baseNavigator: BaseNavigator = remember { BaseNavigator() }
 ): NavigationManager {
-    return remember { NavigationManagerImpl(baseNavigator) }
+    return remember { NavigationManagerImpl(CoroutineScope(Dispatchers.IO), baseNavigator) }
 }
